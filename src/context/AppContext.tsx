@@ -1,13 +1,7 @@
-import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
-import { INITIAL_USER, BADGES, type UserProfile, type Opportunity, type Badge } from '../data/mockData';
-
-// ============================================================
-// APP CONTEXT
-// 
-// Manages global state: mode toggle, user data, notifications.
-// The mode flag controls which features are visible, enabling
-// the between-subjects study design described in our proposal.
-// ============================================================
+import React, { createContext, useContext, useState, useCallback, ReactNode, useEffect } from 'react';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../firebase';
+import { INITIAL_USER, BADGES, type UserProfile, type Opportunity } from '../data/mockData';
 
 interface Notification {
   id: number;
@@ -16,24 +10,15 @@ interface Notification {
 }
 
 interface AppContextType {
-  // Mode
   mode: 'full' | 'control';
   isFullMode: boolean;
   toggleMode: () => void;
-  
-  // User
   user: UserProfile;
   setUser: React.Dispatch<React.SetStateAction<UserProfile>>;
-  
-  // Notifications
   notifications: Notification[];
   addNotification: (msg: string, type?: Notification['type']) => void;
-  
-  // Onboarding
   hasOnboarded: boolean;
   setHasOnboarded: (v: boolean) => void;
-  
-  // Actions
   handleSignUp: (oppId: number) => void;
   handleCompleteActivity: (opp: Opportunity) => { showReflection: boolean; showLogHours: boolean };
   handleLogHours: (opp: Opportunity, hours: number) => void;
@@ -49,7 +34,7 @@ export const useApp = () => {
   return ctx;
 };
 
-export const AppProvider = ({ children }: { children: ReactNode }) => {
+export const AppProvider = ({ children, uid }: { children: ReactNode; uid: string }) => {
   const [mode, setMode] = useState<'full' | 'control'>(() => {
     const params = new URLSearchParams(window.location.search);
     return params.get('mode') === 'control' ? 'control' : 'full';
@@ -57,8 +42,20 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<UserProfile>({ ...INITIAL_USER });
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [hasOnboarded, setHasOnboarded] = useState(false);
+  const [loaded, setLoaded] = useState(false);
 
   const isFullMode = mode === 'full';
+
+  useEffect(() => {
+    const loadUser = async () => {
+      const snap = await getDoc(doc(db, 'users', uid));
+      if (snap.exists()) {
+        setUser({ ...INITIAL_USER, ...snap.data() as Partial<UserProfile> });
+      }
+      setLoaded(true);
+    };
+    loadUser();
+  }, [uid]);
 
   const toggleMode = useCallback(() => {
     setMode(m => m === 'full' ? 'control' : 'full');
@@ -116,8 +113,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }));
     addNotification(`Completed "${opp.title}"!`, 'success');
     setTimeout(() => addNotification(`+${xpEarned} XP earned!`, 'xp'), 600);
-    
-    // Check for near-badge completion
     const almostDone = BADGES.find(b => !b.earned && b.progress && b.progress >= 90);
     if (almostDone) {
       setTimeout(() => addNotification(`Almost there! "${almostDone.name}" badge is ${almostDone.progress}% complete`, 'badge'), 1200);
@@ -139,6 +134,14 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }));
     addNotification('New goal created! 🎯');
   }, [addNotification]);
+
+  if (!loaded) {
+    return (
+      <div className="min-h-screen bg-rootly-gradient flex items-center justify-center">
+        <p className="text-gray-500">Loading...</p>
+      </div>
+    );
+  }
 
   return (
     <AppContext.Provider value={{
