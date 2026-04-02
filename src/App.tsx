@@ -1342,9 +1342,9 @@ function AppShell() {
 // ============================================================
 // APP WRAPPER
 // ============================================================
-export default function App() {
+export default function App({ uid }: { uid: string }) {
   return (
-    <AppProvider>
+    <AppProvider uid={uid}>
       <AppShell />
     </AppProvider>
   );
