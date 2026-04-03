@@ -13,10 +13,10 @@ import {
   PolarRadiusAxis, Radar, PieChart, Pie, Cell
 } from 'recharts';
 import {
-  OPPORTUNITIES, BADGES, WEEKLY_HOURS, SKILL_RADAR_DATA,
+  OPPORTUNITIES, BADGES,
   CATEGORIES, REFLECTION_QUESTIONS, ONBOARDING_INTERESTS,
   ONBOARDING_AVAILABILITY, ONBOARDING_GOALS,
-  type Opportunity
+  type Opportunity, type ActivityLog, type Skill
 } from './data/mockData';
 
 // ============================================================
@@ -78,6 +78,57 @@ const catColors: Record<string, { bg: string; text: string; dot: string }> = {
 };
 const getCatColor = (cat: string) => catColors[cat] || { bg: 'bg-gray-100', text: 'text-gray-700', dot: 'bg-gray-500' };
 
+const parseActivityDate = (value: string) => {
+  if (value === 'Today') return new Date();
+
+  const withYear = /\d{4}/.test(value) ? value : `${value}, ${new Date().getFullYear()}`;
+  const parsed = new Date(withYear);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const getWeeklyHoursData = (activities: ActivityLog[]) => {
+  const now = new Date();
+  const startOfThisWeek = new Date(now);
+  const day = startOfThisWeek.getDay();
+  const diffToMonday = (day + 6) % 7;
+  startOfThisWeek.setDate(startOfThisWeek.getDate() - diffToMonday);
+  startOfThisWeek.setHours(0, 0, 0, 0);
+
+  const buckets = Array.from({ length: 8 }, (_, index) => ({
+    week: `W${index + 1}`,
+    hours: 0,
+  }));
+
+  activities.forEach(activity => {
+    const parsed = parseActivityDate(activity.date);
+    if (!parsed) return;
+
+    const start = new Date(parsed);
+    start.setHours(0, 0, 0, 0);
+    const daysDiff = Math.floor((startOfThisWeek.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+    if (daysDiff < 0) return;
+
+    const weekIndex = Math.floor(daysDiff / 7);
+    if (weekIndex >= 0 && weekIndex < buckets.length) {
+      buckets[weekIndex].hours += activity.hours;
+    }
+  });
+
+  return buckets.reverse();
+};
+
+const getSkillRadarData = (skills: Skill[]) => {
+  return skills
+    .slice()
+    .sort((a, b) => (b.level * 100 + b.progress) - (a.level * 100 + a.progress))
+    .slice(0, 6)
+    .map(skill => ({
+      skill: skill.name,
+      value: Math.min(skill.level * 20 + Math.round(skill.progress / 5), 100),
+      fullMark: 100,
+    }));
+};
+
 
 // ============================================================
 // MAIN APP SHELL
@@ -87,6 +138,8 @@ function AppShell() {
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedOpp, setSelectedOpp] = useState<Opportunity | null>(null);
+  const weeklyHoursData = useMemo(() => getWeeklyHoursData(user.recentActivity), [user.recentActivity]);
+  const skillRadarData = useMemo(() => getSkillRadarData(user.skills), [user.skills]);
 
   // Show onboarding on first visit in full mode
   const showOnboarding = isFullMode && !hasOnboarded;
@@ -369,7 +422,7 @@ function AppShell() {
                 Weekly Hours
               </h3>
               <ResponsiveContainer width="100%" height={180}>
-                <BarChart data={WEEKLY_HOURS} barSize={24}>
+                <BarChart data={weeklyHoursData} barSize={24}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
                   <XAxis dataKey="week" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
@@ -392,14 +445,20 @@ function AppShell() {
                 <TrendingUp size={18} className="text-lilac-600" />
                 Skills Radar
               </h3>
-              <ResponsiveContainer width="100%" height={180}>
-                <RadarChart data={SKILL_RADAR_DATA} cx="50%" cy="50%" outerRadius="70%">
-                  <PolarGrid stroke="#e5e7eb" strokeDasharray="3 3" />
-                  <PolarAngleAxis dataKey="skill" tick={{ fontSize: 10, fill: '#6b7280' }} />
-                  <PolarRadiusAxis tick={false} axisLine={false} domain={[0, 100]} />
-                  <Radar dataKey="value" stroke="#a855f7" fill="#a855f7" fillOpacity={0.15} strokeWidth={2} dot={{ r: 3, fill: '#a855f7' }} />
-                </RadarChart>
-              </ResponsiveContainer>
+              {skillRadarData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={180}>
+                  <RadarChart data={skillRadarData} cx="50%" cy="50%" outerRadius="70%">
+                    <PolarGrid stroke="#e5e7eb" strokeDasharray="3 3" />
+                    <PolarAngleAxis dataKey="skill" tick={{ fontSize: 10, fill: '#6b7280' }} />
+                    <PolarRadiusAxis tick={false} axisLine={false} domain={[0, 100]} />
+                    <Radar dataKey="value" stroke="#a855f7" fill="#a855f7" fillOpacity={0.15} strokeWidth={2} dot={{ r: 3, fill: '#a855f7' }} />
+                  </RadarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-[180px] flex items-center justify-center text-center text-sm text-gray-400">
+                  Complete activities to start building your skills profile.
+                </div>
+              )}
             </div>
           </div>
 

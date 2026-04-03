@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, ReactNode, useEffect } from 'react';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { INITIAL_USER, BADGES, type UserProfile, type Opportunity } from '../data/mockData';
+import { INITIAL_USER, BADGES, type UserProfile, type Opportunity, type Skill } from '../data/mockData';
 
 interface Notification {
   id: number;
@@ -34,6 +34,48 @@ export const useApp = () => {
   return ctx;
 };
 
+const SKILL_COLORS = ['#4ea54e', '#a855f7', '#4ECDC4', '#FFB347', '#FF6B9D', '#7EC8E3'];
+
+const updateGoalProgress = (user: UserProfile, hoursToAdd: number) => {
+  return user.goals.map(goal => {
+    if (goal.unit === 'hours') {
+      return { ...goal, current: Math.min(goal.current + hoursToAdd, goal.target) };
+    }
+    if (goal.unit === 'activities') {
+      return { ...goal, current: Math.min(goal.current + 1, goal.target) };
+    }
+    return goal;
+  });
+};
+
+const updateSkills = (skills: Skill[], activitySkills: string[]) => {
+  const nextSkills = [...skills];
+
+  activitySkills.forEach(skillName => {
+    const existingIndex = nextSkills.findIndex(skill => skill.name === skillName);
+
+    if (existingIndex >= 0) {
+      const current = nextSkills[existingIndex];
+      const nextProgress = current.progress + 20;
+      nextSkills[existingIndex] = {
+        ...current,
+        level: current.level + Math.floor(nextProgress / 100),
+        progress: nextProgress % 100,
+      };
+      return;
+    }
+
+    nextSkills.push({
+      name: skillName,
+      level: 1,
+      progress: 25,
+      color: SKILL_COLORS[nextSkills.length % SKILL_COLORS.length],
+    });
+  });
+
+  return nextSkills;
+};
+
 export const AppProvider = ({ children, uid }: { children: ReactNode; uid: string }) => {
   const [mode, setMode] = useState<'full' | 'control'>(() => {
     const params = new URLSearchParams(window.location.search);
@@ -56,6 +98,12 @@ export const AppProvider = ({ children, uid }: { children: ReactNode; uid: strin
     };
     loadUser();
   }, [uid]);
+
+  useEffect(() => {
+    if (!loaded) return;
+
+    void setDoc(doc(db, 'users', uid), user, { merge: true });
+  }, [loaded, uid, user]);
 
   const toggleMode = useCallback(() => {
     setMode(m => m === 'full' ? 'control' : 'full');
@@ -89,6 +137,8 @@ export const AppProvider = ({ children, uid }: { children: ReactNode; uid: strin
       activitiesCompleted: prev.activitiesCompleted + 1,
       completedIds: [...prev.completedIds, opp.id],
       signedUp: prev.signedUp.filter(id => id !== opp.id),
+      goals: updateGoalProgress(prev, hours),
+      skills: updateSkills(prev.skills, opp.skills),
       recentActivity: [
         { date: 'Today', title: opp.title, hours, xp: 0, category: opp.category },
         ...prev.recentActivity,
@@ -106,6 +156,8 @@ export const AppProvider = ({ children, uid }: { children: ReactNode; uid: strin
       activitiesCompleted: prev.activitiesCompleted + 1,
       completedIds: [...prev.completedIds, opp.id],
       signedUp: prev.signedUp.filter(id => id !== opp.id),
+      goals: updateGoalProgress(prev, opp.hours),
+      skills: updateSkills(prev.skills, opp.skills),
       recentActivity: [
         { date: 'Today', title: opp.title, hours: opp.hours, xp: xpEarned, category: opp.category },
         ...prev.recentActivity,
