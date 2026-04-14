@@ -1,12 +1,36 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import {
   Award, BookOpen, Calendar, ChevronRight, Clock, Check, Filter,
   Flag, Heart, Home, Leaf, LogOut, MapPin, Menu, MessageSquare,
   Search, Settings, Star, Target, TrendingUp, Trophy, User, Users,
   X, ChevronDown, ArrowRight, Sparkles, Zap, Shield, Globe,
-  TreePine, Sun, Coffee, Plus, ArrowLeft, BarChart3
+  TreePine, Sun, Coffee, Plus, ArrowLeft, BarChart3,
+  Download, Database, Trash2, Eye
 } from 'lucide-react';
+import {
+  useAnalytics as useAnalyticsHook,
+  trackEvent,
+  getAnalyticsSummary,
+  getAllEvents,
+  getSessionSummaries,
+  exportEventsCSV,
+  exportSessionsCSV,
+  exportSummaryCSV,
+  downloadCSV,
+  clearAnalyticsData,
+  getParticipantId,
+  setParticipantId,
+  fetchAllEventsFromFirestore,
+  getParticipantIds,
+  getSummaryFromEvents,
+  getSessionSummariesFromEvents,
+  exportEventsCSVFromData,
+  exportSessionsCSVFromData,
+  exportAllParticipantsSummaryCSV,
+  clearFirestoreAnalytics,
+  type AnalyticsEvent,
+} from './hooks/useAnalytics';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis,
@@ -134,12 +158,13 @@ const getSkillRadarData = (skills: Skill[]) => {
 // MAIN APP SHELL
 // ============================================================
 function AppShell() {
-  const { mode, isFullMode, toggleMode, user, notifications, hasOnboarded, setHasOnboarded } = useApp();
-  const [currentPage, setCurrentPage] = useState('dashboard');
+  const { mode, isFullMode, toggleMode, user, notifications, hasOnboarded, setHasOnboarded, currentPage, setCurrentPage, onLogout } = useApp();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedOpp, setSelectedOpp] = useState<Opportunity | null>(null);
+  const [showAdmin, setShowAdmin] = useState(false);
   const weeklyHoursData = useMemo(() => getWeeklyHoursData(user.recentActivity), [user.recentActivity]);
   const skillRadarData = useMemo(() => getSkillRadarData(user.skills), [user.skills]);
+  const { track } = useAnalyticsHook(mode, currentPage);
 
   // Show onboarding on first visit in full mode
   const showOnboarding = isFullMode && !hasOnboarded;
@@ -252,6 +277,13 @@ function AppShell() {
             <div className={`w-2 h-2 rounded-full ${isFullMode ? 'bg-sage-500 animate-pulseGlow' : 'bg-gray-400'}`} />
             <span className="text-[11px] text-gray-500 font-medium">{isFullMode ? 'Full Version' : 'Control Version'}</span>
           </div>
+          <button
+            onClick={onLogout}
+            className="mt-2 w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium text-gray-500 hover:bg-red-50 hover:text-red-600 transition-all duration-200"
+          >
+            <LogOut size={16} />
+            Log Out
+          </button>
         </div>
       </aside>
     </>
@@ -502,7 +534,7 @@ function AppShell() {
           ).map((opp, i) => (
             <div
               key={opp.id}
-              onClick={() => { setSelectedOpp(opp); setCurrentPage('opportunities'); }}
+              onClick={() => { setSelectedOpp(opp); setCurrentPage('opportunities'); track('opportunity_view', opp.title); }}
               className={`flex items-center gap-3 p-3 rounded-xl hover:bg-sage-50/60 transition-all cursor-pointer group animate-fadeInUp stagger-${i + 1}`}
             >
               <OppIllustration type={opp.image} size="sm" />
@@ -588,7 +620,7 @@ function AppShell() {
             type="text"
             placeholder="Search by name, organization, or category..."
             value={searchQ}
-            onChange={e => setSearchQ(e.target.value)}
+            onChange={e => { setSearchQ(e.target.value); if (e.target.value.length === 1) track('search_used', e.target.value); }}
             className="w-full pl-11 pr-4 py-3 rounded-2xl border border-gray-200 focus:border-sage-400 focus:ring-2 focus:ring-sage-100 outline-none transition-all bg-white/80 text-sm"
           />
         </div>
@@ -598,7 +630,7 @@ function AppShell() {
           {CATEGORIES.map(cat => (
             <button
               key={cat}
-              onClick={() => setCatFilter(cat)}
+              onClick={() => { setCatFilter(cat); track('filter_used', cat); }}
               className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
                 catFilter === cat
                   ? 'bg-sage-600 text-white shadow-sm shadow-sage-200'
@@ -617,7 +649,7 @@ function AppShell() {
             return (
               <div
                 key={opp.id}
-                onClick={() => setSelectedOpp(opp)}
+                onClick={() => { setSelectedOpp(opp); track('opportunity_view', opp.title); }}
                 className={`bg-white/70 backdrop-blur-sm rounded-2xl border border-white/60 overflow-hidden shadow-soft hover:shadow-md cursor-pointer hover:-translate-y-1 transition-all duration-300 animate-fadeInUp stagger-${i + 1}`}
               >
                 <OppIllustration type={opp.image} size="lg" />
@@ -1384,8 +1416,15 @@ function AppShell() {
 
       <MobileNav />
 
-      {/* Mode Toggle — Admin/Study Tool */}
-      <div className="fixed bottom-20 lg:bottom-4 right-4 z-50">
+      {/* Mode Toggle + Analytics — Admin/Study Tool */}
+      <div className="fixed bottom-20 lg:bottom-4 right-4 z-50 flex flex-col gap-2">
+        <button
+          onClick={() => setShowAdmin(prev => !prev)}
+          className="px-4 py-2 rounded-xl text-[11px] font-semibold bg-gray-800/90 text-white shadow-lg hover:bg-gray-700 transition-all backdrop-blur-sm flex items-center gap-2"
+        >
+          <Database size={12} />
+          Analytics
+        </button>
         <button
           onClick={toggleMode}
           className="px-4 py-2 rounded-xl text-[11px] font-semibold bg-gray-800/90 text-white shadow-lg hover:bg-gray-700 transition-all backdrop-blur-sm flex items-center gap-2"
@@ -1394,6 +1433,371 @@ function AppShell() {
           {isFullMode ? 'Full (Gamified)' : 'Control (Basic)'} — Switch
         </button>
       </div>
+
+      {showAdmin && <AdminPanel onClose={() => setShowAdmin(false)} />}
+    </div>
+  );
+}
+
+// ============================================================
+// ADMIN PANEL — Analytics Dashboard
+// ============================================================
+function AdminPanel({ onClose }: { onClose: () => void }) {
+  const { mode } = useApp();
+  const [tab, setTab] = useState<'local' | 'all'>('all');
+  // Local state
+  const [summary, setSummary] = useState(() => getAnalyticsSummary());
+  const [sessions, setSessions] = useState(() => getSessionSummaries());
+  const [events, setEvents] = useState(() => getAllEvents());
+  // Firestore state
+  const [fsEvents, setFsEvents] = useState<AnalyticsEvent[]>([]);
+  const [fsLoading, setFsLoading] = useState(false);
+  const [fsError, setFsError] = useState('');
+  const [selectedPid, setSelectedPid] = useState<string>('all');
+
+  const [showRawEvents, setShowRawEvents] = useState(false);
+  const [editingPid, setEditingPid] = useState(false);
+  const [pidInput, setPidInput] = useState(() => getParticipantId());
+
+  const refreshLocal = () => {
+    setSummary(getAnalyticsSummary());
+    setSessions(getSessionSummaries());
+    setEvents(getAllEvents());
+  };
+
+  const refreshFirestore = async () => {
+    setFsLoading(true);
+    setFsError('');
+    try {
+      const all = await fetchAllEventsFromFirestore();
+      setFsEvents(all);
+    } catch (err) {
+      setFsError('Failed to load from Firestore. Check your connection.');
+    } finally {
+      setFsLoading(false);
+    }
+  };
+
+  // Load Firestore data on first open
+  useEffect(() => {
+    refreshFirestore();
+  }, []);
+
+  const pid = getParticipantId();
+
+  // Derived Firestore data
+  const fsPids = getParticipantIds(fsEvents);
+  const fsFiltered = selectedPid === 'all' ? fsEvents : fsEvents.filter(e => e.participantId === selectedPid);
+  const fsSummary = getSummaryFromEvents(fsFiltered, selectedPid === 'all' ? undefined : selectedPid);
+  const fsSessions = getSessionSummariesFromEvents(fsFiltered);
+
+  // Shared rendering helpers
+  const renderStats = (s: typeof summary) => (
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="bg-green-50 border border-green-200/60 rounded-2xl p-3 text-center">
+        <p className="text-2xl font-bold text-green-700">{s.totalSessions}</p>
+        <p className="text-[11px] text-green-600 font-medium">Sessions</p>
+      </div>
+      <div className="bg-purple-50 border border-purple-200/60 rounded-2xl p-3 text-center">
+        <p className="text-2xl font-bold text-purple-700">{s.totalInteractions}</p>
+        <p className="text-[11px] text-purple-600 font-medium">Interactions</p>
+      </div>
+      <div className="bg-amber-50 border border-amber-200/60 rounded-2xl p-3 text-center">
+        <p className="text-2xl font-bold text-amber-700">{s.totalDurationMinutes}m</p>
+        <p className="text-[11px] text-amber-600 font-medium">Total Duration</p>
+      </div>
+      <div className="bg-blue-50 border border-blue-200/60 rounded-2xl p-3 text-center">
+        <p className="text-2xl font-bold text-blue-700">{s.averageSessionMinutes}m</p>
+        <p className="text-[11px] text-blue-600 font-medium">Avg Session</p>
+      </div>
+    </div>
+  );
+
+  const renderEventBreakdown = (s: typeof summary) => (
+    <div>
+      <h3 className="text-sm font-semibold text-gray-700 mb-2">Event Breakdown</h3>
+      <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+        {Object.entries(s.eventCounts)
+          .filter(([type]) => type !== 'session_start' && type !== 'session_end')
+          .sort((a, b) => b[1] - a[1])
+          .map(([type, count]) => (
+            <div key={type} className="bg-gray-50 border border-gray-100 rounded-xl px-2.5 py-2 text-center">
+              <p className="text-sm font-bold text-gray-700">{count}</p>
+              <p className="text-[10px] text-gray-500 truncate">{type.replace(/_/g, ' ')}</p>
+            </div>
+          ))}
+      </div>
+    </div>
+  );
+
+  const renderSessionLog = (sessionList: typeof sessions) => (
+    <div>
+      <h3 className="text-sm font-semibold text-gray-700 mb-2">Session Log</h3>
+      <div className="space-y-1.5 max-h-48 overflow-y-auto">
+        {sessionList.length === 0 && <p className="text-xs text-gray-400 text-center py-4">No sessions recorded yet.</p>}
+        {sessionList.map((s, i) => (
+          <div key={s.sessionId} className="flex items-center justify-between bg-gray-50 rounded-xl px-3 py-2 text-xs">
+            <div>
+              <span className="font-semibold text-gray-700">Session {i + 1}</span>
+              <span className="text-gray-400 ml-2">{new Date(s.startTime).toLocaleString()}</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-gray-500">{s.durationMinutes}m</span>
+              <span className="font-semibold text-gray-600">{s.interactionCount} actions</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const renderRawEvents = (eventList: AnalyticsEvent[], showPid?: boolean) => (
+    <div>
+      <button
+        onClick={() => setShowRawEvents(prev => !prev)}
+        className="flex items-center gap-2 text-sm font-semibold text-gray-700 hover:text-gray-900 transition-colors"
+      >
+        <ChevronDown size={16} className={`transition-transform duration-200 ${showRawEvents ? 'rotate-180' : ''}`} />
+        Raw Events ({eventList.length} total)
+      </button>
+      {showRawEvents && (
+        <div className="mt-2 max-h-64 overflow-auto border border-gray-200 rounded-xl">
+          <table className="w-full text-[11px]">
+            <thead className="bg-gray-50 sticky top-0">
+              <tr>
+                <th className="px-2 py-1.5 text-left text-gray-500 font-medium">Time</th>
+                {showPid && <th className="px-2 py-1.5 text-left text-gray-500 font-medium">PID</th>}
+                <th className="px-2 py-1.5 text-left text-gray-500 font-medium">Event</th>
+                <th className="px-2 py-1.5 text-left text-gray-500 font-medium">Page</th>
+                <th className="px-2 py-1.5 text-left text-gray-500 font-medium">Metadata</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...eventList].reverse().slice(0, 50).map((e, i) => (
+                <tr key={i} className="border-t border-gray-100 hover:bg-gray-50">
+                  <td className="px-2 py-1 text-gray-500 whitespace-nowrap">{new Date(e.timestamp).toLocaleTimeString()}</td>
+                  {showPid && <td className="px-2 py-1 text-gray-600 font-medium">{e.participantId}</td>}
+                  <td className="px-2 py-1 text-gray-700 font-medium">{e.eventType}</td>
+                  <td className="px-2 py-1 text-gray-500">{e.page}</td>
+                  <td className="px-2 py-1 text-gray-400 truncate max-w-[120px]">{e.metadata || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 animate-fadeIn"
+      onClick={onClose}>
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+      <div
+        className="relative bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl animate-scaleIn"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="bg-gradient-to-r from-gray-800 to-gray-900 rounded-t-3xl p-5 text-white flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Database size={22} />
+            <div>
+              <h2 className="text-lg font-display font-bold">Analytics Dashboard</h2>
+              <p className="text-gray-400 text-xs">Study administrator panel</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors p-1">
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Tab Switcher */}
+        <div className="flex border-b border-gray-200">
+          <button
+            onClick={() => { setTab('all'); setShowRawEvents(false); }}
+            className={`flex-1 py-3 text-sm font-semibold transition-colors ${tab === 'all' ? 'text-sage-700 border-b-2 border-sage-500 bg-sage-50/50' : 'text-gray-400 hover:text-gray-600'}`}
+          >
+            All Participants
+          </button>
+          <button
+            onClick={() => { setTab('local'); setShowRawEvents(false); }}
+            className={`flex-1 py-3 text-sm font-semibold transition-colors ${tab === 'local' ? 'text-sage-700 border-b-2 border-sage-500 bg-sage-50/50' : 'text-gray-400 hover:text-gray-600'}`}
+          >
+            My Device
+          </button>
+        </div>
+
+        <div className="p-5 space-y-5">
+          {/* ====== ALL PARTICIPANTS TAB ====== */}
+          {tab === 'all' && (
+            <>
+              {/* Participant Filter */}
+              <div className="flex items-center gap-3 flex-wrap">
+                <span className="text-xs text-gray-500 font-medium">Filter by participant:</span>
+                <select
+                  value={selectedPid}
+                  onChange={e => setSelectedPid(e.target.value)}
+                  className="border border-gray-300 rounded-lg px-2 py-1 text-xs focus:border-sage-400 outline-none bg-white"
+                >
+                  <option value="all">All Participants ({fsPids.length})</option>
+                  {fsPids.map(p => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+                <span className={`ml-auto text-xs px-2.5 py-1 rounded-lg font-semibold ${fsSummary.mode === 'full' ? 'bg-lilac-100 text-lilac-700' : 'bg-gray-100 text-gray-600'}`}>
+                  {selectedPid === 'all' ? `${fsPids.length} participants` : fsSummary.mode === 'full' ? 'Full (Gamified)' : 'Control (Basic)'}
+                </span>
+              </div>
+
+              {fsLoading && <p className="text-xs text-gray-400 text-center py-8">Loading data from Firestore...</p>}
+              {fsError && <p className="text-xs text-red-500 text-center py-4">{fsError}</p>}
+
+              {!fsLoading && !fsError && (
+                <>
+                  {renderStats(fsSummary)}
+                  {renderEventBreakdown(fsSummary)}
+
+                  {/* Per-Participant Overview (when viewing all) */}
+                  {selectedPid === 'all' && fsPids.length > 0 && (
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-700 mb-2">Participant Overview</h3>
+                      <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                        {fsPids.map(p => {
+                          const ps = getSummaryFromEvents(fsEvents, p);
+                          return (
+                            <div key={p}
+                              onClick={() => setSelectedPid(p)}
+                              className="flex items-center justify-between bg-gray-50 rounded-xl px-3 py-2 text-xs cursor-pointer hover:bg-sage-50 transition-colors">
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-gray-700">{p}</span>
+                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${ps.mode === 'full' ? 'bg-lilac-100 text-lilac-600' : 'bg-gray-200 text-gray-500'}`}>
+                                  {ps.mode}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <span className="text-gray-500">{ps.totalSessions} sessions</span>
+                                <span className="text-gray-500">{ps.totalInteractions} actions</span>
+                                <span className="font-semibold text-gray-600">{ps.totalDurationMinutes}m</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {renderSessionLog(fsSessions)}
+                  {renderRawEvents(fsFiltered, selectedPid === 'all')}
+
+                  {/* Export Buttons */}
+                  <div className="flex flex-wrap gap-2 items-center">
+                    <button onClick={() => downloadCSV(`rootly_all_events.csv`, exportEventsCSVFromData(fsFiltered))}
+                      className="px-3 py-2 rounded-xl text-xs font-semibold bg-green-600 text-white hover:bg-green-700 transition-all flex items-center gap-1.5">
+                      <Download size={12} /> Export Events
+                    </button>
+                    <button onClick={() => downloadCSV(`rootly_all_sessions.csv`, exportSessionsCSVFromData(fsFiltered))}
+                      className="px-3 py-2 rounded-xl text-xs font-semibold bg-purple-600 text-white hover:bg-purple-700 transition-all flex items-center gap-1.5">
+                      <Download size={12} /> Export Sessions
+                    </button>
+                    <button onClick={() => downloadCSV(`rootly_all_summary.csv`, exportAllParticipantsSummaryCSV(fsEvents))}
+                      className="px-3 py-2 rounded-xl text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700 transition-all flex items-center gap-1.5">
+                      <Download size={12} /> Export All Summaries
+                    </button>
+                    <button onClick={refreshFirestore}
+                      className="px-3 py-2 rounded-xl text-xs font-semibold bg-gray-200 text-gray-700 hover:bg-gray-300 transition-all">
+                      Refresh
+                    </button>
+                    <button onClick={async () => {
+                      if (window.confirm('Delete ALL analytics data from Firestore for ALL participants? This cannot be undone.')) {
+                        await clearFirestoreAnalytics();
+                        await refreshFirestore();
+                      }
+                    }}
+                      className="px-3 py-2 rounded-xl text-xs font-semibold bg-red-600 text-white hover:bg-red-700 transition-all ml-auto flex items-center gap-1.5">
+                      <Trash2 size={12} /> Clear All Data
+                    </button>
+                  </div>
+
+                  <p className="text-[11px] text-gray-400 leading-relaxed">
+                    Data is synced to Firestore — all teammates can view it. &quot;Export All Summaries&quot; produces one row per participant for easy group comparison in a spreadsheet.
+                  </p>
+                </>
+              )}
+            </>
+          )}
+
+          {/* ====== MY DEVICE TAB ====== */}
+          {tab === 'local' && (
+            <>
+              {/* Participant ID + Mode */}
+              <div className="flex items-center gap-3 flex-wrap">
+                <span className="text-xs text-gray-500 font-medium">Participant:</span>
+                {editingPid ? (
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="text"
+                      value={pidInput}
+                      onChange={e => setPidInput(e.target.value)}
+                      className="border border-gray-300 rounded-lg px-2 py-1 text-xs w-24 focus:border-sage-400 outline-none"
+                    />
+                    <button onClick={() => { setParticipantId(pidInput); setEditingPid(false); refreshLocal(); }}
+                      className="text-sage-600 hover:text-sage-700 p-0.5"><Check size={14} /></button>
+                    <button onClick={() => { setPidInput(pid); setEditingPid(false); }}
+                      className="text-gray-400 hover:text-gray-600 p-0.5"><X size={14} /></button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold bg-gray-100 border border-gray-200 px-2.5 py-1 rounded-lg">{pid}</span>
+                    <button onClick={() => setEditingPid(true)}
+                      className="text-xs text-sage-600 hover:text-sage-700 font-medium">Edit</button>
+                  </div>
+                )}
+                <span className={`ml-auto text-xs px-2.5 py-1 rounded-lg font-semibold ${mode === 'full' ? 'bg-lilac-100 text-lilac-700' : 'bg-gray-100 text-gray-600'}`}>
+                  {mode === 'full' ? 'Full (Gamified)' : 'Control (Basic)'}
+                </span>
+              </div>
+
+              {renderStats(summary)}
+              {renderEventBreakdown(summary)}
+              {renderSessionLog(sessions)}
+              {renderRawEvents(events)}
+
+              {/* Export Buttons */}
+              <div className="flex flex-wrap gap-2 items-center">
+                <button onClick={() => downloadCSV(`rootly_events_${pid}.csv`, exportEventsCSV())}
+                  className="px-3 py-2 rounded-xl text-xs font-semibold bg-green-600 text-white hover:bg-green-700 transition-all flex items-center gap-1.5">
+                  <Download size={12} /> Export All Events
+                </button>
+                <button onClick={() => downloadCSV(`rootly_sessions_${pid}.csv`, exportSessionsCSV())}
+                  className="px-3 py-2 rounded-xl text-xs font-semibold bg-purple-600 text-white hover:bg-purple-700 transition-all flex items-center gap-1.5">
+                  <Download size={12} /> Export Sessions
+                </button>
+                <button onClick={() => downloadCSV(`rootly_summary_${pid}.csv`, exportSummaryCSV())}
+                  className="px-3 py-2 rounded-xl text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700 transition-all flex items-center gap-1.5">
+                  <Download size={12} /> Export Summary
+                </button>
+                <button onClick={refreshLocal}
+                  className="px-3 py-2 rounded-xl text-xs font-semibold bg-gray-200 text-gray-700 hover:bg-gray-300 transition-all">
+                  Refresh
+                </button>
+                <button onClick={() => {
+                  if (window.confirm('Clear local analytics data? This cannot be undone. Export your CSVs first.')) {
+                    clearAnalyticsData();
+                    refreshLocal();
+                  }
+                }}
+                  className="px-3 py-2 rounded-xl text-xs font-semibold bg-red-600 text-white hover:bg-red-700 transition-all ml-auto flex items-center gap-1.5">
+                  <Trash2 size={12} /> Clear Local Data
+                </button>
+              </div>
+
+              <p className="text-[11px] text-gray-400 leading-relaxed">
+                This shows data from localStorage on this device only. Switch to &quot;All Participants&quot; to see data from all users synced via Firestore.
+              </p>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -1401,9 +1805,9 @@ function AppShell() {
 // ============================================================
 // APP WRAPPER
 // ============================================================
-export default function App({ uid }: { uid: string }) {
+export default function App({ uid, onLogout }: { uid: string; onLogout: () => void }) {
   return (
-    <AppProvider uid={uid}>
+    <AppProvider uid={uid} onLogout={onLogout}>
       <AppShell />
     </AppProvider>
   );

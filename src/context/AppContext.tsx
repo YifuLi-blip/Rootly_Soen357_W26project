@@ -2,6 +2,8 @@ import React, { createContext, useContext, useState, useCallback, ReactNode, use
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { INITIAL_USER, BADGES, type UserProfile, type Opportunity, type Skill } from '../data/mockData';
+import { trackEvent } from '../hooks/useAnalytics';
+import { endSession } from '../hooks/useAnalytics';
 
 interface Notification {
   id: number;
@@ -24,6 +26,9 @@ interface AppContextType {
   handleLogHours: (opp: Opportunity, hours: number) => void;
   handleSubmitReflection: (opp: Opportunity, answers: Record<number, string>) => void;
   handleAddGoal: (title: string, target: number, unit: string) => void;
+  currentPage: string;
+  setCurrentPage: (page: string) => void;
+  onLogout: () => void;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
@@ -76,15 +81,16 @@ const updateSkills = (skills: Skill[], activitySkills: string[]) => {
   return nextSkills;
 };
 
-export const AppProvider = ({ children, uid }: { children: ReactNode; uid: string }) => {
+export const AppProvider = ({ children, uid, onLogout: onLogoutProp }: { children: ReactNode; uid: string; onLogout: () => void }) => {
   const [mode, setMode] = useState<'full' | 'control'>(() => {
     const params = new URLSearchParams(window.location.search);
     return params.get('mode') === 'control' ? 'control' : 'full';
   });
   const [user, setUser] = useState<UserProfile>({ ...INITIAL_USER });
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [hasOnboarded, setHasOnboarded] = useState(false);
+  const [hasOnboarded, setHasOnboardedState] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [currentPage, setCurrentPageState] = useState('dashboard');
 
   const isFullMode = mode === 'full';
 
@@ -92,7 +98,11 @@ export const AppProvider = ({ children, uid }: { children: ReactNode; uid: strin
     const loadUser = async () => {
       const snap = await getDoc(doc(db, 'users', uid));
       if (snap.exists()) {
-        setUser({ ...INITIAL_USER, ...snap.data() as Partial<UserProfile> });
+        const data = snap.data() as Partial<UserProfile> & { hasOnboarded?: boolean };
+        setUser({ ...INITIAL_USER, ...data });
+        if (data.hasOnboarded) {
+          setHasOnboardedState(true);
+        }
       }
       setLoaded(true);
     };
@@ -105,9 +115,26 @@ export const AppProvider = ({ children, uid }: { children: ReactNode; uid: strin
     void setDoc(doc(db, 'users', uid), user, { merge: true });
   }, [loaded, uid, user]);
 
+  const setCurrentPage = useCallback((page: string) => {
+    setCurrentPageState(page);
+    trackEvent('page_view', mode, page, page);
+  }, [mode]);
+
+  const setHasOnboarded = useCallback((v: boolean) => {
+    setHasOnboardedState(v);
+    if (v) {
+      trackEvent('onboarding_completed', mode, currentPage);
+      void setDoc(doc(db, 'users', uid), { hasOnboarded: true }, { merge: true });
+    }
+  }, [mode, currentPage, uid]);
+
   const toggleMode = useCallback(() => {
-    setMode(m => m === 'full' ? 'control' : 'full');
-  }, []);
+    setMode(m => {
+      const newMode = m === 'full' ? 'control' : 'full';
+      trackEvent('mode_switched', newMode, currentPage, `switched to ${newMode}`);
+      return newMode;
+    });
+  }, [currentPage]);
 
   const addNotification = useCallback((msg: string, type: Notification['type'] = 'success') => {
     const id = Date.now() + Math.random();
@@ -121,7 +148,8 @@ export const AppProvider = ({ children, uid }: { children: ReactNode; uid: strin
     if (isFullMode) {
       setTimeout(() => addNotification('+50 XP earned for signing up!', 'xp'), 500);
     }
-  }, [isFullMode, addNotification]);
+    trackEvent('opportunity_signup', mode, currentPage, `opportunity_${oppId}`);
+  }, [isFullMode, addNotification, mode, currentPage]);
 
   const handleCompleteActivity = useCallback((opp: Opportunity) => {
     if (isFullMode) {
@@ -145,7 +173,8 @@ export const AppProvider = ({ children, uid }: { children: ReactNode; uid: strin
       ],
     }));
     addNotification(`Logged ${hours} hours for "${opp.title}"`);
-  }, [addNotification]);
+    trackEvent('hours_logged', mode, currentPage, `${opp.title} (${hours}h)`);
+  }, [addNotification, mode, currentPage]);
 
   const handleSubmitReflection = useCallback((opp: Opportunity, answers: Record<number, string>) => {
     const xpEarned = opp.hours * 50 + 100;
@@ -169,7 +198,9 @@ export const AppProvider = ({ children, uid }: { children: ReactNode; uid: strin
     if (almostDone) {
       setTimeout(() => addNotification(`Almost there! "${almostDone.name}" badge is ${almostDone.progress}% complete`, 'badge'), 1200);
     }
-  }, [addNotification]);
+    trackEvent('opportunity_complete', mode, currentPage, opp.title);
+    trackEvent('reflection_submitted', mode, currentPage, opp.title);
+  }, [addNotification, mode, currentPage]);
 
   const handleAddGoal = useCallback((title: string, target: number, unit: string) => {
     setUser(prev => ({
@@ -185,7 +216,13 @@ export const AppProvider = ({ children, uid }: { children: ReactNode; uid: strin
       }],
     }));
     addNotification('New goal created! 🎯');
-  }, [addNotification]);
+    trackEvent('goal_created', mode, currentPage, `${title} (${target} ${unit})`);
+  }, [addNotification, mode, currentPage]);
+
+  const onLogout = useCallback(() => {
+    endSession(mode, currentPage);
+    onLogoutProp();
+  }, [mode, currentPage, onLogoutProp]);
 
   if (!loaded) {
     return (
@@ -202,6 +239,8 @@ export const AppProvider = ({ children, uid }: { children: ReactNode; uid: strin
       notifications, addNotification,
       hasOnboarded, setHasOnboarded,
       handleSignUp, handleCompleteActivity, handleLogHours, handleSubmitReflection, handleAddGoal,
+      currentPage, setCurrentPage,
+      onLogout,
     }}>
       {children}
     </AppContext.Provider>
