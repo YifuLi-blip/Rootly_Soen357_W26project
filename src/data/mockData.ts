@@ -1,9 +1,3 @@
-// ============================================================
-// MOCK DATA — Rootly Prototype
-// All data is hardcoded to simulate a real volunteering platform
-// without requiring a backend or database.
-// ============================================================
-
 export interface Opportunity {
   id: number;
   title: string;
@@ -73,7 +67,29 @@ export interface UserProfile {
   recentActivity: ActivityLog[];
   signedUp: number[];
   completedIds: number[];
+  badges?: Badge[];
 }
+
+const clampProgress = (value: number, target: number) => {
+  if (target <= 0) return 0;
+  return Math.max(0, Math.min(100, Math.round((value / target) * 100)));
+};
+
+const countActivitiesByCategory = (user: UserProfile, category: string) => {
+  return user.recentActivity.filter(activity => activity.category === category).length;
+};
+
+const countUniqueCategories = (user: UserProfile) => {
+  return new Set(user.recentActivity.map(activity => activity.category)).size;
+};
+
+const countReflections = (user: UserProfile) => {
+  return user.recentActivity.filter(activity => activity.xp > 0).length;
+};
+
+const countCompletedGoals = (user: UserProfile) => {
+  return user.goals.filter(goal => goal.current >= goal.target).length;
+};
 
 export const OPPORTUNITIES: Opportunity[] = [
   {
@@ -198,6 +214,70 @@ export const BADGES: Badge[] = [
   { id: 11, name: "Reflective Mind", description: "Complete 10 post-activity reflections", icon: "heart", earned: false, progress: 30, color: "#9B7ED8", category: "growth" },
   { id: 12, name: "Goal Setter", description: "Create and complete 3 personal goals", icon: "flag", earned: false, progress: 33, color: "#4ECDC4", category: "engagement" },
 ];
+
+export const getDynamicBadges = (user: UserProfile): Badge[] => {
+  const hasLevelThreeSkill = user.skills.some(skill => skill.level >= 3);
+  const educationActivities = countActivitiesByCategory(user, 'Education');
+  const environmentActivities = countActivitiesByCategory(user, 'Environment');
+  const uniqueCategories = countUniqueCategories(user);
+  const reflections = countReflections(user);
+  const completedGoals = countCompletedGoals(user);
+
+  return BADGES.map(badge => {
+    switch (badge.id) {
+      case 1: {
+        const earned = user.activitiesCompleted >= 1;
+        return { ...badge, earned, progress: clampProgress(user.activitiesCompleted, 1), date: earned ? 'Unlocked' : undefined };
+      }
+      case 2: {
+        const earned = user.activitiesCompleted >= 5;
+        return { ...badge, earned, progress: clampProgress(user.activitiesCompleted, 5), date: earned ? 'Unlocked' : undefined };
+      }
+      case 3: {
+        const earned = user.totalHours >= 20;
+        return { ...badge, earned, progress: clampProgress(user.totalHours, 20), date: earned ? 'Unlocked' : undefined };
+      }
+      case 4: {
+        const earned = user.currentStreak >= 4;
+        return { ...badge, earned, progress: clampProgress(user.currentStreak, 4), date: earned ? 'Unlocked' : undefined };
+      }
+      case 5: {
+        const earned = hasLevelThreeSkill;
+        return { ...badge, earned, progress: hasLevelThreeSkill ? 100 : clampProgress(Math.max(...user.skills.map(skill => skill.level), 0), 3), date: earned ? 'Unlocked' : undefined };
+      }
+      case 6: {
+        const earned = user.totalHours >= 50;
+        return { ...badge, earned, progress: clampProgress(user.totalHours, 50), date: earned ? 'Unlocked' : undefined };
+      }
+      case 7: {
+        const earned = educationActivities >= 5;
+        return { ...badge, earned, progress: clampProgress(educationActivities, 5), date: earned ? 'Unlocked' : undefined };
+      }
+      case 8: {
+        const earned = environmentActivities >= 5;
+        return { ...badge, earned, progress: clampProgress(environmentActivities, 5), date: earned ? 'Unlocked' : undefined };
+      }
+      case 9: {
+        const earned = uniqueCategories >= 4;
+        return { ...badge, earned, progress: clampProgress(uniqueCategories, 4), date: earned ? 'Unlocked' : undefined };
+      }
+      case 10: {
+        const earned = user.totalHours >= 100;
+        return { ...badge, earned, progress: clampProgress(user.totalHours, 100), date: earned ? 'Unlocked' : undefined };
+      }
+      case 11: {
+        const earned = reflections >= 10;
+        return { ...badge, earned, progress: clampProgress(reflections, 10), date: earned ? 'Unlocked' : undefined };
+      }
+      case 12: {
+        const earned = completedGoals >= 3;
+        return { ...badge, earned, progress: clampProgress(completedGoals, 3), date: earned ? 'Unlocked' : undefined };
+      }
+      default:
+        return badge;
+    }
+  });
+};
 
 export const WEEKLY_HOURS = [
   { week: "W1", hours: 5 }, { week: "W2", hours: 3 }, { week: "W3", hours: 7 },

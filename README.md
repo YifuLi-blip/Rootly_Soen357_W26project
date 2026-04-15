@@ -1,154 +1,186 @@
-# Rootly_Soen357_W26project
+# Rootly
 
-The app has two modes:
+Rootly is the final prototype for the SOEN 357 project. It is a volunteering platform designed to compare a gamified experience against a basic control version while also collecting interaction data for analysis.
 
-- **Full (Gamified)** — includes badges, XP, skill tracking, goal setting, post-activity reflection, progress visualizations
-- **Control (Basic)** — browse opportunities, sign up, log hours — no gamification elements
+The app supports two study conditions:
 
-Both modes share the same visual design and opportunity data, ensuring the only independent variable in the study is the presence of gamification features.
+- Full (Gamified): badges, XP, goals, skill growth, onboarding, reflections, progress charts
+- Control (Basic): browse opportunities, sign up, log hours, view profile/history
 
----
+Both modes use the same opportunities and general UI so the main experimental difference is the presence or absence of gamification.
 
-## Features
+## Current Prototype Scope
 
-### Full (Gamified) Version
+This version is no longer frontend-only.
 
-- **Personalized Onboarding** — 3-step survey matching interests, availability, and goals
-- **Interactive Dashboard** — progress bars, weekly hours chart, skills radar, recent badges
-- **Achievement System** — 12 badges across milestone, social, engagement, and growth categories
-- **Skill Tracking** — 6 skill areas with levels and progress visualization
-- **Goal Setting** — create custom goals with live progress tracking
-- **Post-Activity Reflection** — guided 4-question form after each activity
-- **XP & Leveling** — earn XP for sign-ups, completions, and reflections
-- **Streak Tracking** — weekly volunteering streak counter
+- Frontend: React + TypeScript + Tailwind + Recharts
+- Backend services: Firebase Authentication + Firestore
+- Analytics storage: localStorage backup plus Firestore sync
 
-### Control (Basic) Version
+The prototype is still partially mock-driven:
 
-- Browse volunteer opportunities with search and filters
-- Sign up for activities
-- Log hours after completion
-- Basic profile with total hours and activity history
+- Opportunity seed data is provided locally for first-time Firestore initialization
+- Badge definitions are static, but unlock state and progress are computed dynamically
+- Some profile defaults still come from initial seed data
+
+## Implemented Features
 
 ### Shared Features
 
-- Fully responsive (desktop + mobile)
+- Email/password sign up and sign in
+- Responsive dashboard, explore page, and profile page
 - Search and category filtering for opportunities
-- Opportunity detail pages with organization info
-- Consistent sage green + lilac purple color palette
+- Opportunity detail pages with organization, date, time, and location
+- Sign up for activities, cancel sign-up, and complete/log them
+- Opportunity availability persisted in Firestore
+- User progress persisted in Firestore
+- Admin CRUD for opportunities inside the in-app admin panel
 
----
+### Full (Gamified) Mode
+
+- 3-step onboarding flow
+- XP and level display
+- Goal creation and goal progress
+- Skill growth tracking
+- Weekly hours chart
+- Skills radar chart
+- Post-activity reflection flow
+- Badge gallery and progress visuals
+
+### Control (Basic) Mode
+
+- Browse volunteer opportunities
+- Sign up for activities
+- Log volunteer hours
+- View activity history and summary stats
+
+### Study / Analytics Features
+
+- Session tracking
+- Page view tracking
+- Opportunity view / signup / completion tracking
+- Goal creation and reflection analytics
+- Participant ID support
+- Admin analytics panel with Firestore-backed aggregation
+- In-app opportunity management panel for create / edit / delete
+- CSV export for events, sessions, and summary reports
+
+## Dynamic vs Mock Data
+
+### Dynamic / Persisted
+
+- Authenticated users in Firebase Auth
+- User profile document in Firestore
+- Opportunity catalog in Firestore
+- Opportunity remaining spots in Firestore
+- Signed-up opportunities
+- Completed activities and recent activity log
+- Total hours and activity counts
+- Goals created by the user
+- Goal progress updates after activity completion
+- Skills growth updates after activity completion
+- Onboarding completion flag
+- Persisted badge snapshots in the user document
+- Analytics events written to Firestore
+- Weekly Hours chart derived from `recentActivity`
+- Skills Radar chart derived from `skills`
+- Badge unlock state and progress derived from live user data
+
+### Still Mock / Static
+
+- Opportunity seed data used to populate Firestore if the collection is empty
+- Badge definitions and visual metadata
+- Some starter profile values from `INITIAL_USER`
+- Category metadata and onboarding option lists
 
 ## Tech Stack
 
-| Tool                                          | Purpose                     |
-| --------------------------------------------- | --------------------------- |
-| [Vite](https://vitejs.dev/)                   | Build tool & dev server     |
-| [React 18](https://react.dev/)                | UI framework                |
-| [TypeScript](https://www.typescriptlang.org/) | Type safety                 |
-| [Tailwind CSS 3](https://tailwindcss.com/)    | Utility-first styling       |
-| [Recharts](https://recharts.org/)             | Data visualization (charts) |
-| [Lucide React](https://lucide.dev/)           | Icon library                |
+| Tool | Purpose |
+| --- | --- |
+| Vite | Build tool and dev server |
+| React 18 | UI framework |
+| TypeScript | Type safety |
+| Tailwind CSS 3 | Styling |
+| Recharts | Data visualization |
+| Lucide React | Icons |
+| Firebase Auth | Authentication |
+| Firestore | User data and analytics storage |
 
-No backend or database required — all data is mock/hardcoded for prototype purposes.
+## Project Structure
 
----
+```text
+rootly/
+├── public/
+│   └── leaf.svg
+├── src/
+│   ├── context/
+│   │   └── AppContext.tsx      # App state, Firestore sync, badges, opportunities
+│   ├── data/
+│   │   └── mockData.ts         # Badge definitions, seed opportunities, initial seed data
+│   ├── hooks/
+│   │   └── useAnalytics.ts     # Analytics tracking, export, Firestore utilities
+│   ├── App.tsx                 # Main UI, pages, analytics and opportunity admin panel
+│   ├── AuthPage.tsx            # Sign in / sign up page
+│   ├── firebase.ts             # Firebase initialization
+│   ├── index.css               # Global styles
+│   ├── main.tsx                # App entry point
+│   └── vite-env.d.ts
+├── .env                        # Firebase env vars
+├── package.json
+└── README.md
+```
+
+## Environment Variables
+
+Create a `.env` file with:
+
+```bash
+VITE_FIREBASE_API_KEY=...
+VITE_FIREBASE_AUTH_DOMAIN=...
+VITE_FIREBASE_PROJECT_ID=...
+VITE_FIREBASE_STORAGE_BUCKET=...
+VITE_FIREBASE_MESSAGING_SENDER_ID=...
+VITE_FIREBASE_APP_ID=...
+```
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js 18+ installed
-- npm or yarn
+- Node.js 18+
+- npm
+- A Firebase project with Authentication and Firestore enabled
 
-### Installation
+### Install and Run
 
 ```bash
-# Clone the repository
-git clone https://github.com/YOUR_USERNAME/rootly.git
-cd rootly
-
-# Install dependencies
 npm install
-
-# Start development server
 npm run dev
 ```
 
-The app will be available at `http://localhost:5173`.
+The app runs at `http://localhost:5173`.
 
-### Build for Production
+### Production Build
 
 ```bash
 npm run build
 npm run preview
 ```
 
-### Deploy to Vercel
+## Known Limitations
 
-```bash
-# Install Vercel CLI (if not already installed)
-npm i -g vercel
-
-# Deploy
-vercel
-```
-
----
-
-## Project Structure
-
-```
-rootly/
-├── public/
-│   └── leaf.svg              # Favicon
-├── src/
-│   ├── context/
-│   │   └── AppContext.tsx     # Global state (mode, user, notifications)
-│   ├── data/
-│   │   └── mockData.ts       # All mock data (opportunities, badges, user)
-│   ├── App.tsx                # Main app with all pages and components
-│   ├── index.css              # Global styles, animations, Tailwind
-│   ├── main.tsx               # Entry point
-│   └── vite-env.d.ts          # Vite type declarations
-├── index.html
-├── package.json
-├── tailwind.config.js         # Custom color palette
-├── tsconfig.json
-├── vite.config.ts
-└── README.md
-```
-
----
-
-### What Changes Between Modes
-
-| Feature                  | Full ✅ | Control ❌ |
-| ------------------------ | ------- | ---------- |
-| XP & Leveling            | ✅      | ❌         |
-| Badges & Achievements    | ✅      | ❌         |
-| Skill Tracking           | ✅      | ❌         |
-| Goal Setting             | ✅      | ❌         |
-| Post-Activity Reflection | ✅      | ❌         |
-| Streak Counter           | ✅      | ❌         |
-| Weekly Hours Chart       | ✅      | ❌         |
-| Skills Radar             | ✅      | ❌         |
-| Onboarding Survey        | ✅      | ❌         |
-| Impact Statements        | ✅      | ❌         |
-| Browse Opportunities     | ✅      | ✅         |
-| Sign Up for Activities   | ✅      | ✅         |
-| Log Hours                | ✅      | ✅         |
-| Profile & History        | ✅      | ✅         |
-
----
+- Opportunity seed data still originates from local code before first Firestore sync
+- Badge rules are computed on the client rather than in backend functions
+- Analytics participant IDs are device-based and not linked to Firebase user IDs
+- User profile writes are merge-based and do not use server timestamps
+- Opportunity deletion does not yet cascade into existing user histories or sign-ups
 
 ## Team
 
-| Name               | Student ID |
-| ------------------ | ---------- |
-| Nasib Guma         | 40283693   |
-| Robert Craciunescu | 40282245   |
-| Yifu Li            | 40286100   |
-| George Myttas      | 40227005   |
-| Shouzhu Zhang      | 40069738   |
-
----
+| Name | Student ID |
+| --- | --- |
+| Nasib Guma | 40283693 |
+| Robert Craciunescu | 40282245 |
+| Yifu Li | 40286100 |
+| George Myttas | 40227005 |
+| Shouzhu Zhang | 40069738 |

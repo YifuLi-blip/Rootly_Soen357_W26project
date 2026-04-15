@@ -449,24 +449,32 @@ export function clearAnalyticsData(): void {
 export function useAnalytics(mode: 'full' | 'control', currentPage: string) {
   const modeRef = useRef(mode);
   const pageRef = useRef(currentPage);
+  const sessionClosedRef = useRef(false);
 
   modeRef.current = mode;
   pageRef.current = currentPage;
 
+  const closeSessionIfNeeded = useCallback(() => {
+    if (sessionClosedRef.current) return;
+    sessionClosedRef.current = true;
+    endSession(modeRef.current, pageRef.current);
+  }, []);
+
   // Session start
   useEffect(() => {
     trackEvent('session_start', modeRef.current, pageRef.current);
+    sessionClosedRef.current = false;
 
     const handleBeforeUnload = () => {
-      trackEvent('session_end', modeRef.current, pageRef.current);
+      closeSessionIfNeeded();
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
 
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
-      trackEvent('session_end', modeRef.current, pageRef.current);
+      closeSessionIfNeeded();
     };
-  }, []);
+  }, [closeSessionIfNeeded]);
 
   // Page view tracking
   useEffect(() => {
