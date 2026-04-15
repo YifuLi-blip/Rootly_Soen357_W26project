@@ -1483,13 +1483,24 @@ function AdminPanel({ onClose }: { onClose: () => void }) {
     refreshFirestore();
   }, []);
 
+  // Reset participant filter when mode changes
+  useEffect(() => {
+    setSelectedPid('all');
+  }, [mode]);
+
   const pid = getParticipantId();
 
-  // Derived Firestore data
-  const fsPids = getParticipantIds(fsEvents);
-  const fsFiltered = selectedPid === 'all' ? fsEvents : fsEvents.filter(e => e.participantId === selectedPid);
+  // Derived Firestore data — filtered by current mode
+  const fsModeEvents = fsEvents.filter(e => e.mode === mode);
+  const fsPids = getParticipantIds(fsModeEvents);
+  const fsFiltered = selectedPid === 'all' ? fsModeEvents : fsModeEvents.filter(e => e.participantId === selectedPid);
   const fsSummary = getSummaryFromEvents(fsFiltered, selectedPid === 'all' ? undefined : selectedPid);
   const fsSessions = getSessionSummariesFromEvents(fsFiltered);
+
+  // Derived local data — filtered by current mode
+  const localModeEvents = events.filter(e => e.mode === mode);
+  const localSummary = getSummaryFromEvents(localModeEvents);
+  const localSessions = getSessionSummariesFromEvents(localModeEvents);
 
   // Shared rendering helpers
   const renderStats = (s: typeof summary) => (
@@ -1603,7 +1614,7 @@ function AdminPanel({ onClose }: { onClose: () => void }) {
             <Database size={22} />
             <div>
               <h2 className="text-lg font-display font-bold">Analytics Dashboard</h2>
-              <p className="text-gray-400 text-xs">Study administrator panel</p>
+              <p className="text-gray-400 text-xs">Viewing: <span className={mode === 'full' ? 'text-lilac-300' : 'text-gray-300'}>{mode === 'full' ? 'Gamified Group (Full)' : 'Control Group (Basic)'}</span></p>
             </div>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors p-1">
@@ -1689,6 +1700,11 @@ function AdminPanel({ onClose }: { onClose: () => void }) {
                   {renderSessionLog(fsSessions)}
                   {renderRawEvents(fsFiltered, selectedPid === 'all')}
 
+                  {/* Mode summary */}
+                  <p className="text-[11px] text-gray-400 italic">
+                    Showing {mode === 'full' ? 'Gamified (Full)' : 'Control (Basic)'} group only. Switch mode in the app to view the other group.
+                  </p>
+
                   {/* Export Buttons */}
                   <div className="flex flex-wrap gap-2 items-center">
                     <button onClick={() => downloadCSV(`rootly_all_events.csv`, exportEventsCSVFromData(fsFiltered))}
@@ -1757,10 +1773,10 @@ function AdminPanel({ onClose }: { onClose: () => void }) {
                 </span>
               </div>
 
-              {renderStats(summary)}
-              {renderEventBreakdown(summary)}
-              {renderSessionLog(sessions)}
-              {renderRawEvents(events)}
+              {renderStats(localSummary)}
+              {renderEventBreakdown(localSummary)}
+              {renderSessionLog(localSessions)}
+              {renderRawEvents(localModeEvents)}
 
               {/* Export Buttons */}
               <div className="flex flex-wrap gap-2 items-center">
