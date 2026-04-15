@@ -183,4 +183,3 @@ npm run preview
 | Robert Craciunescu | 40282245 |
 | Yifu Li | 40286100 |
 | George Myttas | 40227005 |
-| Shouzhu Zhang | 40069738 |
