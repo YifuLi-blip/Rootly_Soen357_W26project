@@ -1,11 +1,29 @@
 import { useState } from 'react';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
 import { auth, db } from './firebase';
 
 interface AuthPageProps {
   onLogin: (uid: string) => void;
 }
+
+const getAvatar = (displayName: string) => {
+  const initials = displayName
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map(part => part[0]?.toUpperCase() || '')
+    .join('');
+
+  return initials || 'RT';
+};
+
+const getJoinDate = () => {
+  return new Date().toLocaleDateString('en-CA', {
+    month: 'short',
+    year: 'numeric',
+  });
+};
 
 export default function AuthPage({ onLogin }: AuthPageProps) {
   const [isLogin, setIsLogin] = useState(true);
@@ -24,19 +42,25 @@ export default function AuthPage({ onLogin }: AuthPageProps) {
         onLogin(cred.user.uid);
       } else {
         const cred = await createUserWithEmailAndPassword(auth, email, password);
+        const trimmedName = name.trim();
         await setDoc(doc(db, 'users', cred.user.uid), {
-          name,
+          name: trimmedName,
+          avatar: getAvatar(trimmedName),
           email,
           xp: 0,
           level: 1,
+          xpToNext: 3000,
           totalHours: 0,
           activitiesCompleted: 0,
           currentStreak: 0,
+          joinDate: getJoinDate(),
           signedUp: [],
           completedIds: [],
           recentActivity: [],
           goals: [],
           skills: [],
+          badges: [],
+          hasOnboarded: false,
         });
         onLogin(cred.user.uid);
       }

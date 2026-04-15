@@ -2,15 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ============================================================
-   ROOTLY — Global Styles
-   
-   HCI Principle: Aesthetic-Usability Effect (Kurosu & Kashimura, 1995)
-   Users perceive aesthetically pleasing designs as more usable.
-   Our soft gradients, rounded corners, and consistent spacing
-   create a welcoming atmosphere that encourages exploration.
-   ============================================================ */
-
 * {
   margin: 0;
   padding: 0;
@@ -24,12 +15,10 @@ body {
   overflow-x: hidden;
 }
 
-/* Smooth scrolling — reduces cognitive load during navigation */
 html {
   scroll-behavior: smooth;
 }
 
-/* Custom scrollbar — maintains visual consistency (Consistency & Standards, Nielsen) */
 ::-webkit-scrollbar {
   width: 6px;
 }
@@ -43,14 +32,6 @@ html {
 ::-webkit-scrollbar-thumb:hover {
   background: #a3d4a3;
 }
-
-/* ============================================================
-   ANIMATIONS
-   
-   HCI Principle: Feedback (Norman's Design Principles)
-   Animations provide immediate visual feedback to user actions,
-   confirming that the system has received their input.
-   ============================================================ */
 
 @keyframes fadeInUp {
   from {
@@ -163,14 +144,6 @@ html {
 .stagger-7 { animation-delay: 0.35s; }
 .stagger-8 { animation-delay: 0.4s; }
 
-/* ============================================================
-   GRADIENT BACKGROUNDS
-   
-   HCI Principle: Visual Hierarchy (Gestalt Principles)
-   Gradient backgrounds create depth and guide the eye toward
-   content areas, establishing clear figure-ground relationships.
-   ============================================================ */
-
 .bg-rootly-gradient {
   background: linear-gradient(135deg, #e6f4e6 0%, #f3e8ff 30%, #f4faf4 55%, #e9d5ff 80%, #e6f4e6 100%);
 }
@@ -181,7 +154,6 @@ html {
   -webkit-backdrop-filter: blur(12px);
 }
 
-/* Floating decorative gradient orbs */
 .rootly-orb {
   position: absolute;
   border-radius: 50%;
@@ -190,7 +162,6 @@ html {
   pointer-events: none;
 }
 
-/* Decorative accent bar for cards — provides visual affordance */
 .card-accent-green {
   border-left: 3px solid #4ea54e;
 }
@@ -198,15 +169,6 @@ html {
 .card-accent-purple {
   border-left: 3px solid #a855f7;
 }
-
-/* ============================================================
-   INTERACTIVE ELEMENTS
-   
-   HCI Principle: Affordance (Norman) & Fitts's Law
-   Buttons and interactive elements have generous hit targets
-   (min 44px as per WCAG), clear hover/active states, and
-   visual cues that indicate interactivity.
-   ============================================================ */
 
 .btn-rootly-primary {
   @apply px-6 py-3 rounded-2xl font-semibold text-white transition-all duration-200;
@@ -231,7 +193,6 @@ html {
   box-shadow: 0 4px 15px -3px rgba(168, 85, 247, 0.4);
 }
 
-/* XP shimmer effect for gamification elements */
 .xp-shimmer {
   background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.4) 50%, transparent 100%);
   background-size: 200% 100%;

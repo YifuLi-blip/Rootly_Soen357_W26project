@@ -1,12 +1,12 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import {
-  Award, BookOpen, Calendar, ChevronRight, Clock, Check, Filter,
+  Award, BookOpen, Calendar, ChevronRight, Clock, Check,
   Flag, Heart, Home, Leaf, LogOut, MapPin, Menu, MessageSquare,
   Search, Settings, Star, Target, TrendingUp, Trophy, User, Users,
   X, ChevronDown, ArrowRight, Sparkles, Zap, Shield, Globe,
   TreePine, Sun, Coffee, Plus, ArrowLeft, BarChart3,
-  Download, Database, Trash2, Eye
+  Download, Database, Trash2
 } from 'lucide-react';
 import {
   useAnalytics as useAnalyticsHook,
@@ -34,19 +34,14 @@ import {
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis,
-  PolarRadiusAxis, Radar, PieChart, Pie, Cell
+  PolarRadiusAxis, Radar
 } from 'recharts';
 import {
-  OPPORTUNITIES, BADGES,
   CATEGORIES, REFLECTION_QUESTIONS, ONBOARDING_INTERESTS,
   ONBOARDING_AVAILABILITY, ONBOARDING_GOALS,
   type Opportunity, type ActivityLog, type Skill
 } from './data/mockData';
 
-// ============================================================
-// ICON HELPER
-// Maps string names to Lucide icon components for dynamic rendering.
-// ============================================================
 const iconComponents: Record<string, React.ElementType> = {
   leaf: Leaf, users: Users, clock: Clock, zap: Zap, trending: TrendingUp,
   trophy: Trophy, book: BookOpen, tree: TreePine, globe: Globe, star: Star,
@@ -59,14 +54,6 @@ const DynIcon = ({ name, ...props }: { name: string } & React.ComponentProps<typ
   return <Icon {...props} />;
 };
 
-// ============================================================
-// OPPORTUNITY ILLUSTRATION
-// Provides visual identity to each opportunity card.
-//
-// HCI: Recognition Rather Than Recall (Nielsen Heuristic #6)
-// Color-coded category illustrations help users quickly identify
-// opportunity types without reading the label.
-// ============================================================
 const illustrations: Record<string, { bg: string; icon: React.ElementType; iconColor: string }> = {
   garden:   { bg: 'from-sage-100 to-sage-200',   icon: TreePine,  iconColor: 'text-sage-600' },
   tutoring: { bg: 'from-lilac-100 to-lilac-200',  icon: BookOpen,  iconColor: 'text-lilac-600' },
@@ -90,9 +77,6 @@ const OppIllustration = ({ type, size = 'md' }: { type: string; size?: 'sm' | 'm
   );
 };
 
-// ============================================================
-// CATEGORY COLOR MAP
-// ============================================================
 const catColors: Record<string, { bg: string; text: string; dot: string }> = {
   'Environment':     { bg: 'bg-sage-100',   text: 'text-sage-700',   dot: 'bg-sage-500' },
   'Education':       { bg: 'bg-lilac-100',  text: 'text-lilac-700',  dot: 'bg-lilac-500' },
@@ -153,12 +137,8 @@ const getSkillRadarData = (skills: Skill[]) => {
     }));
 };
 
-
-// ============================================================
-// MAIN APP SHELL
-// ============================================================
 function AppShell() {
-  const { mode, isFullMode, toggleMode, user, notifications, hasOnboarded, setHasOnboarded, currentPage, setCurrentPage, onLogout } = useApp();
+  const { mode, isFullMode, toggleMode, user, badges, opportunities, opportunitiesLoaded, notifications, hasOnboarded, setHasOnboarded, currentPage, setCurrentPage, onLogout, handleCancelSignUp } = useApp();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedOpp, setSelectedOpp] = useState<Opportunity | null>(null);
   const [showAdmin, setShowAdmin] = useState(false);
@@ -166,7 +146,6 @@ function AppShell() {
   const skillRadarData = useMemo(() => getSkillRadarData(user.skills), [user.skills]);
   const { track } = useAnalyticsHook(mode, currentPage);
 
-  // Show onboarding on first visit in full mode
   const showOnboarding = isFullMode && !hasOnboarded;
 
   const navItems = isFullMode
@@ -189,17 +168,6 @@ function AppShell() {
     setSidebarOpen(false);
   };
 
-  // ============================================================
-  // SIDEBAR
-  //
-  // HCI: Visibility of System Status (Nielsen Heuristic #1)
-  // The sidebar shows the user's current level and XP progress
-  // at all times, providing continuous feedback on their standing.
-  //
-  // HCI: Consistency & Standards (Nielsen Heuristic #4)
-  // Navigation items use familiar icons and labels that follow
-  // platform conventions users already understand.
-  // ============================================================
   const Sidebar = () => (
     <>
       {sidebarOpen && (
@@ -289,16 +257,6 @@ function AppShell() {
     </>
   );
 
-  // ============================================================
-  // NOTIFICATION TOASTS
-  //
-  // HCI: Feedback (Norman's Interaction Design Principles)
-  // Every user action triggers immediate visual feedback through
-  // toast notifications, confirming the system received their input.
-  //
-  // Color coding follows natural mappings: green = success,
-  // purple = XP gain, gold = badge progress.
-  // ============================================================
   const Toasts = () => (
     <div className="fixed top-4 right-4 z-[60] space-y-2 pointer-events-none">
       {notifications.map(n => (
@@ -316,14 +274,6 @@ function AppShell() {
     </div>
   );
 
-  // ============================================================
-  // MOBILE BOTTOM NAV
-  //
-  // HCI: Fitts's Law
-  // Bottom navigation on mobile places targets at the edge of
-  // the screen, making them infinitely easy to acquire with the
-  // thumb. Icons + labels follow the Recognition principle.
-  // ============================================================
   const MobileNav = () => (
     <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-white/95 to-white/85 backdrop-blur-xl border-t border-sage-200/50 z-40 lg:hidden safe-bottom">
       <div className="flex justify-around py-1">
@@ -345,21 +295,6 @@ function AppShell() {
     </div>
   );
 
-  // ============================================================
-  // PAGE: DASHBOARD
-  //
-  // HCI: Visibility of System Status (Nielsen #1)
-  // Stats cards give immediate overview of the user's standing.
-  //
-  // HCI: Recognition Rather Than Recall (Nielsen #6)
-  // Progress bars, charts, and badge displays make abstract
-  // progress concrete and visible without requiring users to
-  // remember past activities.
-  //
-  // Gamification: Self-Determination Theory — Competence
-  // XP counter, level display, and progress visualizations
-  // satisfy the need for competence by making growth visible.
-  // ============================================================
   const DashboardPage = () => (
     <div className="space-y-6 animate-fadeIn">
       {/* Welcome Banner */}
@@ -397,7 +332,7 @@ function AppShell() {
           { label: 'Activities', value: user.activitiesCompleted, icon: Check, color: 'lilac', suffix: '' },
           ...(isFullMode ? [
             { label: 'Current Streak', value: user.currentStreak, icon: Zap, color: 'amber', suffix: ' weeks' },
-            { label: 'Badges Earned', value: BADGES.filter(b => b.earned).length, icon: Award, color: 'rose', suffix: '' },
+            { label: 'Badges Earned', value: badges.filter(b => b.earned).length, icon: Award, color: 'rose', suffix: '' },
           ] : []),
         ].map((stat, i) => (
           <div key={stat.label} className={`bg-white/70 backdrop-blur-sm rounded-2xl border border-white/60 p-4 shadow-soft hover:shadow-md transition-all duration-300 animate-fadeInUp stagger-${i + 1}`}>
@@ -506,7 +441,7 @@ function AppShell() {
               </button>
             </div>
             <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1">
-              {BADGES.filter(b => b.earned).map((badge, i) => (
+              {badges.filter(b => b.earned).map((badge, i) => (
                 <div key={badge.id} className={`flex flex-col items-center gap-2 min-w-[76px] animate-fadeInUp stagger-${i + 1}`}>
                   <div
                     className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-sm transition-transform hover:scale-110 duration-200"
@@ -529,8 +464,8 @@ function AppShell() {
         </h3>
         <div className="space-y-2">
           {(user.signedUp.length > 0
-            ? OPPORTUNITIES.filter(o => user.signedUp.includes(o.id))
-            : OPPORTUNITIES.slice(0, 3)
+            ? opportunities.filter(o => user.signedUp.includes(o.id))
+            : opportunities.slice(0, 3)
           ).map((opp, i) => (
             <div
               key={opp.id}
@@ -578,31 +513,17 @@ function AppShell() {
     </div>
   );
 
-  // ============================================================
-  // PAGE: OPPORTUNITIES
-  //
-  // HCI: User Control & Freedom (Nielsen #3)
-  // Search + category filters give users control over what they see.
-  //
-  // HCI: Aesthetic-Usability Effect
-  // Card-based layout with illustrations creates visual appeal
-  // and makes scanning a large list feel effortless.
-  //
-  // SDT: Autonomy
-  // Users choose which opportunities align with their interests,
-  // supporting the psychological need for autonomy.
-  // ============================================================
   const OpportunitiesPage = () => {
     const [searchQ, setSearchQ] = useState('');
     const [catFilter, setCatFilter] = useState('All');
 
-    const filtered = useMemo(() => OPPORTUNITIES.filter(o => {
+    const filtered = useMemo(() => opportunities.filter(o => {
       const matchCat = catFilter === 'All' || o.category === catFilter;
       const matchSearch = o.title.toLowerCase().includes(searchQ.toLowerCase()) ||
         o.org.toLowerCase().includes(searchQ.toLowerCase()) ||
         o.category.toLowerCase().includes(searchQ.toLowerCase());
       return matchCat && matchSearch;
-    }), [catFilter, searchQ]);
+    }), [catFilter, searchQ, opportunities]);
 
     if (selectedOpp) return <OppDetail opp={selectedOpp} onBack={() => setSelectedOpp(null)} />;
 
@@ -644,6 +565,11 @@ function AppShell() {
 
         {/* Grid */}
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {!opportunitiesLoaded && (
+            <div className="col-span-full text-center py-12 text-gray-400">
+              <p className="font-medium">Loading opportunities...</p>
+            </div>
+          )}
           {filtered.map((opp, i) => {
             const cc = getCatColor(opp.category);
             return (
@@ -686,7 +612,7 @@ function AppShell() {
             );
           })}
         </div>
-        {filtered.length === 0 && (
+        {opportunitiesLoaded && filtered.length === 0 && (
           <div className="text-center py-12 text-gray-400">
             <Search size={40} className="mx-auto mb-3 text-gray-300" />
             <p className="font-medium">No opportunities found</p>
@@ -697,17 +623,6 @@ function AppShell() {
     );
   };
 
-  // ============================================================
-  // OPPORTUNITY DETAIL
-  //
-  // HCI: Match Between System & Real World (Nielsen #2)
-  // Opportunity details are presented in a real-world language
-  // structure: date, time, location, spots — not database fields.
-  //
-  // HCI: Help & Documentation (Nielsen #10)
-  // Impact statements help users understand the significance
-  // of their contribution without needing external info.
-  // ============================================================
   const OppDetail = ({ opp, onBack }: { opp: Opportunity; onBack: () => void }) => {
     const { handleSignUp, handleCompleteActivity } = useApp();
     const [showReflection, setShowReflection] = useState(false);
@@ -805,17 +720,14 @@ function AppShell() {
                 {isFullMode ? <><MessageSquare size={16} /> Complete & Reflect</> : <><Clock size={16} /> Log Hours</>}
               </button>
               <button
-                onClick={() => {
-                  const { setUser: su } = useApp();
-                  // handled inline
-                }}
+                onClick={() => { void handleCancelSignUp(opp.id); }}
                 className="px-6 py-3 rounded-2xl font-semibold border-2 border-sage-200 text-sage-700 hover:bg-sage-50 transition-all min-h-[44px]"
               >
                 Cancel Sign-up
               </button>
             </div>
           ) : (
-            <button onClick={() => handleSignUp(opp.id)} className="btn-rootly-primary flex items-center gap-2">
+            <button onClick={() => { void handleSignUp(opp.id); }} disabled={opp.spotsLeft <= 0} className="btn-rootly-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
               <ArrowRight size={16} /> Sign Up for This Activity
             </button>
           )}
@@ -828,21 +740,6 @@ function AppShell() {
     );
   };
 
-  // ============================================================
-  // REFLECTION MODAL
-  //
-  // HCI: Feedback + Closure (Norman)
-  // The reflection form provides closure after completing an
-  // activity, turning a passive event into an active learning moment.
-  //
-  // SDT: Relatedness
-  // Reflection questions prompt users to consider their impact
-  // on the community, reinforcing the sense of belonging.
-  //
-  // SDT: Competence
-  // Asking "what skills did you develop?" helps users recognize
-  // their own growth, satisfying the need for competence.
-  // ============================================================
   const ReflectionModal = ({ opp, onClose }: { opp: Opportunity; onClose: () => void }) => {
     const { handleSubmitReflection } = useApp();
     const [answers, setAnswers] = useState<Record<number, string>>({});
@@ -891,9 +788,6 @@ function AppShell() {
     );
   };
 
-  // ============================================================
-  // LOG HOURS MODAL (Control version)
-  // ============================================================
   const LogHoursModal = ({ opp, onClose }: { opp: Opportunity; onClose: () => void }) => {
     const { handleLogHours } = useApp();
     const [hours, setHours] = useState('');
@@ -921,21 +815,6 @@ function AppShell() {
     );
   };
 
-  // ============================================================
-  // PAGE: GOALS
-  //
-  // SDT: Autonomy
-  // Users create their own goals, giving them ownership
-  // over their volunteering trajectory.
-  //
-  // HCI: Visibility of System Status (Nielsen #1)
-  // Progress bars with percentages provide clear status on
-  // each goal, eliminating uncertainty about where they stand.
-  //
-  // Gamification: Goal-Gradient Effect (Kivetz et al., 2006)
-  // As users approach their goal target, the visual progress
-  // accelerates perceived progress and motivation.
-  // ============================================================
   const GoalsPage = () => {
     const { handleAddGoal } = useApp();
     const [showModal, setShowModal] = useState(false);
@@ -1048,21 +927,6 @@ function AppShell() {
     );
   };
 
-  // ============================================================
-  // PAGE: ACHIEVEMENTS
-  //
-  // Gamification: Variable Ratio Reinforcement
-  // Showing locked badges with progress % creates anticipation
-  // and motivates continued engagement to unlock them.
-  //
-  // SDT: Competence
-  // Earned badges serve as tangible evidence of skill mastery,
-  // directly satisfying the need for competence.
-  //
-  // HCI: Recognition (Nielsen #6)
-  // Color-coded badges with icons allow instant recognition
-  // of achievement types without reading descriptions.
-  // ============================================================
   const AchievementsPage = () => (
     <div className="space-y-6 animate-fadeIn">
       <div>
@@ -1075,14 +939,14 @@ function AppShell() {
         <div className="bg-white/70 backdrop-blur-sm rounded-2xl border border-white/60 px-5 py-3 shadow-soft flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-xl bg-amber-100 flex items-center justify-center"><Trophy className="text-amber-600" size={16} /></div>
           <div>
-            <span className="text-lg font-display font-bold text-gray-800">{BADGES.filter(b => b.earned).length}</span>
+            <span className="text-lg font-display font-bold text-gray-800">{badges.filter(b => b.earned).length}</span>
             <span className="text-xs text-gray-400 ml-1">Earned</span>
           </div>
         </div>
         <div className="bg-white/70 backdrop-blur-sm rounded-2xl border border-white/60 px-5 py-3 shadow-soft flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center"><Star className="text-gray-400" size={16} /></div>
           <div>
-            <span className="text-lg font-display font-bold text-gray-800">{BADGES.filter(b => !b.earned).length}</span>
+            <span className="text-lg font-display font-bold text-gray-800">{badges.filter(b => !b.earned).length}</span>
             <span className="text-xs text-gray-400 ml-1">Locked</span>
           </div>
         </div>
@@ -1092,7 +956,7 @@ function AppShell() {
       <div>
         <h3 className="font-display font-bold text-gray-700 mb-3 flex items-center gap-2"><Award size={16} className="text-amber-500" /> Earned</h3>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-          {BADGES.filter(b => b.earned).map((badge, i) => (
+          {badges.filter(b => b.earned).map((badge, i) => (
             <div key={badge.id} className={`bg-white/70 backdrop-blur-sm rounded-2xl border border-white/60 p-4 shadow-soft text-center hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 animate-fadeInUp stagger-${i + 1}`}>
               <div
                 className="w-16 h-16 rounded-2xl mx-auto mb-3 flex items-center justify-center shadow-sm"
@@ -1112,7 +976,7 @@ function AppShell() {
       <div>
         <h3 className="font-display font-bold text-gray-700 mb-3 flex items-center gap-2"><Target size={16} className="text-lilac-500" /> In Progress</h3>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-          {BADGES.filter(b => !b.earned).map((badge, i) => (
+          {badges.filter(b => !b.earned).map((badge, i) => (
             <div key={badge.id} className={`bg-white/70 backdrop-blur-sm rounded-2xl border border-white/60 p-4 shadow-soft text-center opacity-80 hover:opacity-100 transition-all duration-300 animate-fadeInUp stagger-${i + 1}`}>
               <div className="w-16 h-16 rounded-2xl mx-auto mb-3 flex items-center justify-center bg-gray-100 border-2 border-dashed border-gray-300">
                 <DynIcon name={badge.icon} size={26} className="text-gray-400" />
@@ -1132,17 +996,6 @@ function AppShell() {
     </div>
   );
 
-  // ============================================================
-  // PAGE: PROFILE
-  //
-  // HCI: Visibility of System Status (Nielsen #1)
-  // Aggregated stats give the user a complete picture of their
-  // volunteering history at a single glance.
-  //
-  // SDT: Competence
-  // The skills summary provides visible evidence of growth,
-  // reinforcing the user's sense of development.
-  // ============================================================
   const ProfilePage = () => (
     <div className="space-y-6 animate-fadeIn">
       {/* Header Card */}
@@ -1172,7 +1025,7 @@ function AppShell() {
           { label: 'Activities Done', value: user.activitiesCompleted, color: '#a855f7' },
           ...(isFullMode ? [
             { label: 'Total XP', value: user.xp.toLocaleString(), color: '#f59e0b' },
-            { label: 'Badges Earned', value: BADGES.filter(b => b.earned).length, color: '#f43f5e' },
+            { label: 'Badges Earned', value: badges.filter(b => b.earned).length, color: '#f43f5e' },
           ] : []),
         ].map((stat, i) => (
           <div key={stat.label} className={`bg-white/70 backdrop-blur-sm rounded-2xl border border-white/60 p-4 shadow-soft text-center animate-fadeInUp stagger-${i + 1}`}>
@@ -1234,21 +1087,6 @@ function AppShell() {
     </div>
   );
 
-  // ============================================================
-  // ONBOARDING FLOW
-  //
-  // HCI: Progressive Disclosure
-  // The onboarding is split into 3 focused steps instead of
-  // one overwhelming form, reducing cognitive load.
-  //
-  // SDT: Autonomy
-  // Letting users choose their interests, availability, and
-  // goals gives them ownership from the very first interaction.
-  //
-  // HCI: Feedback (Norman)
-  // A progress indicator at the top shows users exactly where
-  // they are in the flow and how much is left.
-  // ============================================================
   const OnboardingFlow = () => {
     const [step, setStep] = useState(0);
     const [data, setData] = useState({ interests: [] as string[], availability: '', goal: '' });
@@ -1443,8 +1281,8 @@ function AppShell() {
 // ADMIN PANEL — Analytics Dashboard
 // ============================================================
 function AdminPanel({ onClose }: { onClose: () => void }) {
-  const { mode } = useApp();
-  const [tab, setTab] = useState<'local' | 'all'>('all');
+  const { mode, opportunities, saveOpportunity, deleteOpportunityById } = useApp();
+  const [tab, setTab] = useState<'local' | 'all' | 'opportunities'>('all');
   // Local state
   const [summary, setSummary] = useState(() => getAnalyticsSummary());
   const [sessions, setSessions] = useState(() => getSessionSummaries());
@@ -1458,6 +1296,28 @@ function AdminPanel({ onClose }: { onClose: () => void }) {
   const [showRawEvents, setShowRawEvents] = useState(false);
   const [editingPid, setEditingPid] = useState(false);
   const [pidInput, setPidInput] = useState(() => getParticipantId());
+  const nextOpportunityId = useMemo(
+    () => (opportunities.length > 0 ? Math.max(...opportunities.map(opportunity => opportunity.id)) + 1 : 1),
+    [opportunities],
+  );
+  const makeOpportunityDraft = useCallback((id: number): Opportunity => ({
+    id,
+    title: '',
+    org: '',
+    category: 'Community',
+    location: 'Montreal, QC',
+    date: '',
+    time: '',
+    hours: 1,
+    skills: [],
+    description: '',
+    spots: 10,
+    spotsLeft: 10,
+    image: 'garden',
+    impact: '',
+  }), []);
+  const [oppDraft, setOppDraft] = useState<Opportunity>(() => makeOpportunityDraft(nextOpportunityId));
+  const [oppSaving, setOppSaving] = useState(false);
 
   const refreshLocal = () => {
     setSummary(getAnalyticsSummary());
@@ -1482,6 +1342,15 @@ function AdminPanel({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     refreshFirestore();
   }, []);
+
+  useEffect(() => {
+    setOppDraft(prev => {
+      if (opportunities.some(opportunity => opportunity.id === prev.id)) {
+        return prev;
+      }
+      return makeOpportunityDraft(nextOpportunityId);
+    });
+  }, [makeOpportunityDraft, nextOpportunityId, opportunities]);
 
   const pid = getParticipantId();
 
@@ -1594,7 +1463,7 @@ function AdminPanel({ onClose }: { onClose: () => void }) {
       onClick={onClose}>
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
       <div
-        className="relative bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl animate-scaleIn"
+        className="relative bg-white rounded-3xl max-w-5xl w-full max-h-[90vh] overflow-y-auto shadow-2xl animate-scaleIn"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
@@ -1624,6 +1493,12 @@ function AdminPanel({ onClose }: { onClose: () => void }) {
             className={`flex-1 py-3 text-sm font-semibold transition-colors ${tab === 'local' ? 'text-sage-700 border-b-2 border-sage-500 bg-sage-50/50' : 'text-gray-400 hover:text-gray-600'}`}
           >
             My Device
+          </button>
+          <button
+            onClick={() => { setTab('opportunities'); setShowRawEvents(false); }}
+            className={`flex-1 py-3 text-sm font-semibold transition-colors ${tab === 'opportunities' ? 'text-sage-700 border-b-2 border-sage-500 bg-sage-50/50' : 'text-gray-400 hover:text-gray-600'}`}
+          >
+            Opportunities
           </button>
         </div>
 
@@ -1794,6 +1669,189 @@ function AdminPanel({ onClose }: { onClose: () => void }) {
               <p className="text-[11px] text-gray-400 leading-relaxed">
                 This shows data from localStorage on this device only. Switch to &quot;All Participants&quot; to see data from all users synced via Firestore.
               </p>
+            </>
+          )}
+
+          {tab === 'opportunities' && (
+            <>
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700">Opportunity Manager</h3>
+                  <p className="text-xs text-gray-400">Create, edit, and remove opportunities stored in Firestore.</p>
+                </div>
+                <button
+                  onClick={() => setOppDraft(makeOpportunityDraft(nextOpportunityId))}
+                  className="px-3 py-2 rounded-xl text-xs font-semibold bg-sage-600 text-white hover:bg-sage-700 transition-all"
+                >
+                  New Opportunity
+                </button>
+              </div>
+
+              <div className="grid lg:grid-cols-[1.2fr_1fr] gap-5">
+                <div className="border border-gray-200 rounded-2xl overflow-hidden">
+                  <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 text-sm font-semibold text-gray-700">
+                    Current Opportunities ({opportunities.length})
+                  </div>
+                  <div className="max-h-[520px] overflow-y-auto">
+                    {opportunities.map(opportunity => (
+                      <div
+                        key={opportunity.id}
+                        className={`px-4 py-3 border-b border-gray-100 cursor-pointer transition-colors ${oppDraft.id === opportunity.id ? 'bg-sage-50' : 'hover:bg-gray-50'}`}
+                        onClick={() => setOppDraft({ ...opportunity, skills: [...opportunity.skills] })}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-gray-800">{opportunity.title}</p>
+                            <p className="text-xs text-gray-400">{opportunity.org} · {opportunity.category}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs font-semibold text-sage-700">{opportunity.spotsLeft}/{opportunity.spots} spots</p>
+                            <p className="text-[11px] text-gray-400">{opportunity.hours}h</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="border border-gray-200 rounded-2xl p-4 space-y-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-700">{opportunities.some(opportunity => opportunity.id === oppDraft.id) ? 'Edit Opportunity' : 'New Opportunity'}</h3>
+                      <p className="text-xs text-gray-400">Document ID: {oppDraft.id}</p>
+                    </div>
+                    {opportunities.some(opportunity => opportunity.id === oppDraft.id) && (
+                      <button
+                        onClick={async () => {
+                          if (!window.confirm(`Delete "${oppDraft.title}"? This cannot be undone.`)) return;
+                          await deleteOpportunityById(oppDraft.id);
+                          setOppDraft(makeOpportunityDraft(nextOpportunityId));
+                        }}
+                        className="px-3 py-2 rounded-xl text-xs font-semibold bg-red-600 text-white hover:bg-red-700 transition-all flex items-center gap-1.5"
+                      >
+                        <Trash2 size={12} /> Delete
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <input
+                      value={oppDraft.title}
+                      onChange={e => setOppDraft(prev => ({ ...prev, title: e.target.value }))}
+                      placeholder="Title"
+                      className="col-span-2 px-4 py-3 rounded-xl border border-gray-200 focus:border-sage-400 outline-none text-sm"
+                    />
+                    <input
+                      value={oppDraft.org}
+                      onChange={e => setOppDraft(prev => ({ ...prev, org: e.target.value }))}
+                      placeholder="Organization"
+                      className="col-span-2 px-4 py-3 rounded-xl border border-gray-200 focus:border-sage-400 outline-none text-sm"
+                    />
+                    <select
+                      value={oppDraft.category}
+                      onChange={e => setOppDraft(prev => ({ ...prev, category: e.target.value }))}
+                      className="px-4 py-3 rounded-xl border border-gray-200 focus:border-sage-400 outline-none text-sm bg-white"
+                    >
+                      {CATEGORIES.filter(category => category !== 'All').map(category => (
+                        <option key={category} value={category}>{category}</option>
+                      ))}
+                    </select>
+                    <input
+                      value={oppDraft.location}
+                      onChange={e => setOppDraft(prev => ({ ...prev, location: e.target.value }))}
+                      placeholder="Location"
+                      className="px-4 py-3 rounded-xl border border-gray-200 focus:border-sage-400 outline-none text-sm"
+                    />
+                    <input
+                      value={oppDraft.date}
+                      onChange={e => setOppDraft(prev => ({ ...prev, date: e.target.value }))}
+                      placeholder="Apr 28, 2026"
+                      className="px-4 py-3 rounded-xl border border-gray-200 focus:border-sage-400 outline-none text-sm"
+                    />
+                    <input
+                      value={oppDraft.time}
+                      onChange={e => setOppDraft(prev => ({ ...prev, time: e.target.value }))}
+                      placeholder="1:00 PM - 3:00 PM"
+                      className="px-4 py-3 rounded-xl border border-gray-200 focus:border-sage-400 outline-none text-sm"
+                    />
+                    <input
+                      type="number"
+                      min="1"
+                      value={oppDraft.hours}
+                      onChange={e => setOppDraft(prev => ({ ...prev, hours: Number(e.target.value) || 1 }))}
+                      placeholder="Hours"
+                      className="px-4 py-3 rounded-xl border border-gray-200 focus:border-sage-400 outline-none text-sm"
+                    />
+                    <input
+                      type="number"
+                      min="1"
+                      value={oppDraft.spots}
+                      onChange={e => {
+                        const spots = Math.max(Number(e.target.value) || 1, 1);
+                        setOppDraft(prev => ({ ...prev, spots, spotsLeft: Math.min(prev.spotsLeft, spots) }));
+                      }}
+                      placeholder="Total spots"
+                      className="px-4 py-3 rounded-xl border border-gray-200 focus:border-sage-400 outline-none text-sm"
+                    />
+                    <input
+                      type="number"
+                      min="0"
+                      value={oppDraft.spotsLeft}
+                      onChange={e => {
+                        const spotsLeft = Math.max(Number(e.target.value) || 0, 0);
+                        setOppDraft(prev => ({ ...prev, spotsLeft: Math.min(spotsLeft, prev.spots) }));
+                      }}
+                      placeholder="Spots left"
+                      className="px-4 py-3 rounded-xl border border-gray-200 focus:border-sage-400 outline-none text-sm"
+                    />
+                    <input
+                      value={oppDraft.image}
+                      onChange={e => setOppDraft(prev => ({ ...prev, image: e.target.value }))}
+                      placeholder="Illustration key"
+                      className="px-4 py-3 rounded-xl border border-gray-200 focus:border-sage-400 outline-none text-sm"
+                    />
+                    <input
+                      value={oppDraft.skills.join(', ')}
+                      onChange={e => setOppDraft(prev => ({
+                        ...prev,
+                        skills: e.target.value.split(',').map(skill => skill.trim()).filter(Boolean),
+                      }))}
+                      placeholder="Skills, comma separated"
+                      className="col-span-2 px-4 py-3 rounded-xl border border-gray-200 focus:border-sage-400 outline-none text-sm"
+                    />
+                    <textarea
+                      value={oppDraft.description}
+                      onChange={e => setOppDraft(prev => ({ ...prev, description: e.target.value }))}
+                      placeholder="Description"
+                      className="col-span-2 px-4 py-3 rounded-xl border border-gray-200 focus:border-sage-400 outline-none text-sm min-h-[96px]"
+                    />
+                    <textarea
+                      value={oppDraft.impact}
+                      onChange={e => setOppDraft(prev => ({ ...prev, impact: e.target.value }))}
+                      placeholder="Impact statement"
+                      className="col-span-2 px-4 py-3 rounded-xl border border-gray-200 focus:border-sage-400 outline-none text-sm min-h-[80px]"
+                    />
+                  </div>
+
+                  <button
+                    onClick={async () => {
+                      setOppSaving(true);
+                      try {
+                        await saveOpportunity(oppDraft);
+                        if (!opportunities.some(opportunity => opportunity.id === oppDraft.id)) {
+                          setOppDraft(makeOpportunityDraft(Math.max(nextOpportunityId, oppDraft.id + 1)));
+                        }
+                      } finally {
+                        setOppSaving(false);
+                      }
+                    }}
+                    disabled={oppSaving || !oppDraft.title.trim() || !oppDraft.org.trim()}
+                    className="w-full px-4 py-3 rounded-xl text-sm font-semibold bg-sage-600 text-white hover:bg-sage-700 transition-all disabled:opacity-50"
+                  >
+                    {oppSaving ? 'Saving...' : 'Save Opportunity'}
+                  </button>
+                </div>
+              </div>
             </>
           )}
         </div>
